@@ -1,6 +1,5 @@
 import glob
 import os
-import lib.subtitle_cleaning as subtitle_cleaning
 import lib.subtitle_sync as subtitle_sync
 import lib.utility as utility
 
@@ -26,15 +25,8 @@ def main():
         raise ValueError(
             f"Number of audio files ({len(reference_audio_files)}) and subtitle files ({len(target_sub_files)}) do not match.")
 
-    # We use audio files directly as reference, so no extraction or cleaning of reference subs needed.
-
-    # Clean target subtitles (Japanese subs logic)
-    cleaned_target_files, cleanup_cleaned_target_subs = subtitle_cleaning.clean_up_japanese_subs(target_sub_files)
-
     # Sync subtitles using audio as reference
-    subtitle_sync.sync_subtitles(reference_audio_files, cleaned_target_files, current_dir)
-
-    cleanup_cleaned_target_subs()
+    subtitle_sync.sync_subtitles(reference_audio_files, target_sub_files, current_dir)
 
 
 if __name__ == '__main__':
