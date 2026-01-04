@@ -1,45 +1,58 @@
 import glob
 import os
-import lib.subtitle_extraction as subtitle_extraction
-import lib.subtitle_cleaning as subtitle_cleaning
+import shutil
 import lib.subtitle_sync as subtitle_sync
+import lib.subtitle_cleaning as subtitle_cleaning
 import lib.utility as utility
 
 
 def main():
-    current_dir = os.getcwd()
+    root_dir = os.getcwd()
+    file_work_dir = os.path.join(root_dir, 'file_work')
 
-    reference_mkv_files = sorted(glob.glob(os.path.join(current_dir, '*.mkv')),
-                                 key=utility.file_name_sorter)
+    if not os.path.exists(file_work_dir):
+        print(f"Error: Directory '{file_work_dir}' does not exist.")
+        return
 
-    # First try with just .srt files
-    target_sub_files = sorted(glob.glob(os.path.join(current_dir, '*.srt')),
+    # Look for audio files (mp3)
+    reference_audio_files = sorted(glob.glob(os.path.join(file_work_dir, '*.mp3')),
+                                   key=utility.file_name_sorter)
+
+    # Look for subtitle files (srt only)
+    target_sub_files = sorted(glob.glob(os.path.join(file_work_dir, '*.srt')),
                               key=utility.file_name_sorter)
 
-    # Only include .ass files if the counts don't match
-    if len(reference_mkv_files) != len(target_sub_files):
-        target_sub_files = sorted(glob.glob(os.path.join(current_dir, '*.srt')) +
-                                  glob.glob(os.path.join(current_dir, '*.ass')),
-                                  key=utility.file_name_sorter)
+    if not reference_audio_files:
+        print("No .mp3 files found in file_work directory.")
+        return
+    
+    if not target_sub_files:
+        print("No .srt files found in file_work directory.")
+        return
 
-    if len(reference_mkv_files) != len(target_sub_files):
-        raise ValueError(
-            f"Number of video files ({len(reference_mkv_files)}) and subtitle files ({len(target_sub_files)}) do not match.")
+    if len(reference_audio_files) != len(target_sub_files):
+        print(f"Error: Number of audio files ({len(reference_audio_files)}) and "
+              f"subtitle files ({len(target_sub_files)}) do not match.")
+        return
 
-    reference_streams_per_file = subtitle_extraction.extract_subtitle_streams_from_files(reference_mkv_files)
-    reference_stream_indices, subtitle_codecs = subtitle_extraction.get_subtitle_stream_indices(
-        reference_streams_per_file)
+    print(f"Found {len(reference_audio_files)} pairs of files.")
 
-    extracted_reference_files, cleanup_extracted_subs = subtitle_extraction.extract_subtitles(
-        reference_mkv_files, subtitle_codecs, reference_stream_indices)
+    # Step 1: Cleaning
+    print("\n--- Step 1: Cleaning Subtitles ---")
+    cleaned_sub_files, cleanup_temp = subtitle_cleaning.clean_subtitles(target_sub_files)
 
-    cleaned_reference_files, cleanup_cleaned_reference_subs = subtitle_cleaning.clean_tags(extracted_reference_files)
-    cleaned_target_files, cleanup_cleaned_target_subs = subtitle_cleaning.clean_up_japanese_subs(target_sub_files)
-    subtitle_sync.sync_subtitles(cleaned_reference_files, cleaned_target_files, current_dir)
+    # Step 2: Syncing
+    print("\n--- Step 2: Syncing Subtitles ---")
+    try:
+        # We pass the cleaned files (which are in a temp dir) as targets
+        # The output currently goes to file_work locally in sync_subtitles
+        subtitle_sync.sync_subtitles(reference_audio_files, cleaned_sub_files, file_work_dir)
+    finally:
+        # Cleanup temporary files
+        if cleanup_temp:
+            cleanup_temp()
 
-    cleanup_extracted_subs()
-    cleanup_cleaned_reference_subs()
-    cleanup_cleaned_target_subs()
+    print("\nProcessing complete.")
 
 
 if __name__ == '__main__':

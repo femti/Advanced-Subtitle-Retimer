@@ -1,3 +1,6 @@
-**__pycache__/
+**/__pycache__/
 .vscode
 Testdata
+venv/
+file_work/*
+!file_work/.gitkeep

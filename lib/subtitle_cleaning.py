@@ -13,9 +13,10 @@ CleanupFunction = Callable[[], None]
 StyleCounts = List[Tuple[str, int]]
 StyleExamples = Dict[str, List[str]]
 
-SYMBOLS_TO_DELETE: Set[str] = {"♪", "～", "―", "~"}
-HEARING_IMPAIRED_REGEX: str = r"（.+?）"
-FURIGANA_REGEX: str = r"\([ぁ-ゞ]+?\)"
+# Removed Japanese specific constants
+SYMBOLS_TO_DELETE: Set[str] = {"♪", "~"}
+# HEARING_IMPAIRED_REGEX (Japanese) removed
+# FURIGANA_REGEX removed
 INITIAL_BRACKETS: str = r"^\(.+\)"
 TAGS_TO_IGNORE_AUTO: List[str] = [
     "Signs", "Caption", "Song", "ED", "OP",
@@ -54,12 +55,8 @@ def process_subtitle_line(line: SSAEvent, clear_flags: Dict[str, bool]) -> None:
     """Process a single subtitle line with the given clear flags."""
     line.text = line.text.replace(r"\N", "\n").replace(r"\n", " ")
 
-    if clear_flags.get('hearing_impaired'):
-        line.text = remove_special_texts(line.text, HEARING_IMPAIRED_REGEX, True)
     if clear_flags.get('special_symbols'):
         line.text = re.sub("|".join(map(re.escape, SYMBOLS_TO_DELETE)), "", line.text)
-    if clear_flags.get('furigana'):
-        line.text = remove_special_texts(line.text, FURIGANA_REGEX, True)
     if clear_flags.get('initial_brackets'):
         line.text = remove_special_texts(line.text, INITIAL_BRACKETS, True)
 
@@ -69,9 +66,7 @@ def process_subtitle_line(line: SSAEvent, clear_flags: Dict[str, bool]) -> None:
 def collect_special_texts(subtitle: SSAFile) -> Dict[str, List[Tuple[str, str]]]:
     """Collect all special text patterns from subtitle file."""
     special_texts: Dict[str, List[Tuple[str, str]]] = {
-        'hearing_impaired': [],
         'special_symbols': [],
-        'furigana': [],
         'initial_brackets': []
     }
 
@@ -80,26 +75,20 @@ def collect_special_texts(subtitle: SSAFile) -> Dict[str, List[Tuple[str, str]]]
 
         if any(symbol in line.text for symbol in SYMBOLS_TO_DELETE):
             special_texts['special_symbols'].append((line.text, "|".join(SYMBOLS_TO_DELETE)))
-        if re.search(HEARING_IMPAIRED_REGEX, line.text):
-            special_texts['hearing_impaired'].append((line.text, HEARING_IMPAIRED_REGEX))
-        if re.search(FURIGANA_REGEX, line.text):
-            special_texts['furigana'].append((line.text, FURIGANA_REGEX))
         if re.search(INITIAL_BRACKETS, line.text):
             special_texts['initial_brackets'].append((line.text, INITIAL_BRACKETS))
 
     return special_texts
 
 
-def clean_up_japanese_subs(subtitle_files: SubtitlePaths) -> Tuple[SubtitlePaths, CleanupFunction]:
-    """Clean Japanese subtitles by removing various special text patterns."""
+def clean_subtitles(subtitle_files: SubtitlePaths) -> Tuple[SubtitlePaths, CleanupFunction]:
+    """Clean subtitles by removing various special text patterns."""
     temp_dir = tempfile.mkdtemp(prefix="cleaned_subs_")
     cleaned_paths: SubtitlePaths = []
 
     # Collect all special texts from all files
     special_texts: Dict[str, List[Tuple[str, str]]] = {
-        'hearing_impaired': [],
         'special_symbols': [],
-        'furigana': [],
         'initial_brackets': []
     }
 
@@ -111,12 +100,8 @@ def clean_up_japanese_subs(subtitle_files: SubtitlePaths) -> Tuple[SubtitlePaths
 
     # Get user confirmation for each category
     clear_flags = {
-        'hearing_impaired': user_confirmation(
-            special_texts['hearing_impaired'], "hearing impaired"),
         'special_symbols': user_confirmation(
             special_texts['special_symbols'], "special symbols"),
-        'furigana': user_confirmation(
-            special_texts['furigana'], "furigana"),
         'initial_brackets': user_confirmation(
             special_texts['initial_brackets'], "initial brackets")
     }
@@ -131,12 +116,12 @@ def clean_up_japanese_subs(subtitle_files: SubtitlePaths) -> Tuple[SubtitlePaths
                            if line.text and "NETFLIX" not in line.text]
         subtitle.remove_miscellaneous_events()
 
-        new_file_name = os.path.join(temp_dir, os.path.basename(subtitle_file))
+        new_file_name = os.path.join(temp_dir, os.path.splitext(os.path.basename(subtitle_file))[0] + ".srt")
         subtitle.save(new_file_name)
         cleaned_paths.append(new_file_name)
-        print(f"Saving cleaned Japanese subtitle to {new_file_name}")
+        print(f"Saving cleaned subtitle to {new_file_name}")
 
-    print("Finished cleaning Japanese subtitles.")
+    print("Finished cleaning subtitles.")
     return cleaned_paths, lambda: shutil.rmtree(temp_dir)
 
 
@@ -197,7 +182,7 @@ def clean_tags(subtitle_list: SubtitlePaths) -> Tuple[SubtitlePaths, CleanupFunc
 
             cleaned_path = os.path.join(
                 temp_dir,
-                os.path.splitext(os.path.basename(subtitle_file))[0] + ".ass"
+                os.path.splitext(os.path.basename(subtitle_file))[0] + ".srt"
             )
             subtitle.save(cleaned_path)
             cleaned_paths.append(cleaned_path)
